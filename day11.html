@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+	<!-- Brian's Advent of Code Solution Template -->
+
+	<!-- stealing the advent of code style -->
+	<head>
+		<link href='http://fonts.googleapis.com/css?family=Source+Code+Pro:300&subset=latin,latin-ext' rel='stylesheet' type='text/css'>
+		<link rel="stylesheet" type="text/css" href="https://adventofcode.com/static/style.css?16"/>
+		<link rel="stylesheet alternate" type="text/css" href="https://adventofcode.com/static/highcontrast.css?0" title="High Contrast"/>
+	</head>
+
+	<body style="font-family: 'Source Code Pro', monospace; font-size: 14pt; min-width: 0px;">
+
+      	<script type="text/javascript">
+
+
+		// Solve that shit
+      	function solveThatShit(){
+      		var startTime = new Date();
+      		var input = new Array();
+			var debug = document.getElementById("debug");
+			var sequence = document.getElementById("input").value.split(" ");
+
+			for( var i = 0 ; i < sequence.length ; i++ )
+				sequence[ i ] = parseInt( sequence [ i ] );
+
+
+			debug.value = "Starting Run\n==============================\n";
+
+			// INSERT SOLUTION HERE
+			var part1total = 0;
+			var part2total = 0;
+			var blinkLimit = 75;
+			var workingSequence;
+			var workingLength = 0;
+
+			var blinkBuffers;
+
+			var precalc = [];
+			/*precalc[0] = [[1],[2024],[20,24],[2,0,2,4]];
+			precalc[1] = [[2024],[20,24],[2,0,2,4]];
+			precalc[2] = [[4048],[40,48],[4,0,4,8]];
+			precalc[3] = [[6072],[60,72],[6,0,7,2]];
+			precalc[4] = [[8096],[80,96],[8,0,9,6]];*/
+
+			var value;
+			var maxPrecalcDepth = 40;
+			var maxPercalcNumber = 9;
+			console.log( "precalculating 0-" + maxPercalcNumber);
+			for( var precalcnum = 0 ; precalcnum <= maxPercalcNumber ; precalcnum++ ){
+				precalc[precalcnum] = [];
+				//var seq = new Array();
+				//seq.push( precalcnum );
+				precalc[precalcnum][0] = [];
+				precalc[precalcnum][0][0] = precalcnum;
+				for( var depth = 0 ; depth < maxPrecalcDepth ; depth++ ){
+					var len = precalc[precalcnum][depth].length;
+					for( var i = 0 ; i < len ; i++ ){
+						//console.log( "start " + precalc[precalcnum][depth].toString() );
+						if( precalc[precalcnum][depth][i] == 0 ){
+							precalc[precalcnum][depth][i] = 1;
+						} else {
+							var numberString = precalc[precalcnum][depth][i].toString();
+							if( numberString.length % 2 == 0 ){
+								var midPoint = ( numberString.length / 2 );
+								precalc[precalcnum][depth][i] = ( parseInt( numberString.substring(0, midPoint ) ) );
+								precalc[precalcnum][depth].push( parseInt( numberString.substring(midPoint, numberString.length ) ) );
+							} else {
+								precalc[precalcnum][depth][i] = precalc[precalcnum][depth][i] * 2024;
+							}
+						}
+						//console.log( "end " + precalc[precalcnum][depth].toString() );
+					}
+					//precalc[precalcnum][depth].push( seq );
+
+					var floor = depth > 0 ? depth - 1 : 0;
+					//console.log( precalcnum + ": done! pushed(i=" + (precalc[precalcnum].length - 1) + " len=" + precalc[precalcnum][depth].length + " lenprev=" + precalc[precalcnum][floor].length + ")") ;//+ precalc[precalcnum][precalc[precalcnum].length - 1].toString() );
+
+					if( depth + 1 < maxPrecalcDepth )
+						precalc[precalcnum][depth+1] = precalc[precalcnum][depth].slice();
+				}
+			}
+			console.log( 'completed at' + ((new Date() - startTime) / 1000 ).toFixed(2));
+
+			//console.log( "4 done to 25 depths:(len=" + precalc[4][4].length + "\n" + precalc[4][4].toString() );
+
+			// too low
+			// 277959529 - too low
+			// 1204594432 - too low
+			// 240336873  - too low
+			for( var s = 0 ; s < sequence.length ; s++ ){
+			//for( var s = 0 ; s < 1 ; s++ ){
+				blinkBuffers = [[],[]];
+				for( var i = 0 ; i <= blinkLimit ; i++ )
+					blinkBuffers.push( [] );
+
+				blinkBuffers[0].push( sequence[ s ] );
+				var limiter = 0;
+				//console.log( "sequence start: " + sequence[ s ] + "\n" );
+
+				do{
+					var blankBuffers = 0;
+					var contactDepth = 0;
+					limiter++;
+
+					//console.log( "starting new dive");
+					// 26669
+
+					for( var currentBlink = 0 ; currentBlink < blinkLimit ; currentBlink++ ){
+						if( blinkBuffers[ currentBlink ].length > 0 ){
+							if( !contactDepth )
+								contactDepth = currentBlink;
+
+							var currentValue = blinkBuffers[ currentBlink ].shift();
+
+							// use precalced answser
+							if( !Number.isInteger( currentValue ) ){
+								var precalcMarker = currentValue.toString().split(".");
+								currentValue = parseInt( precalcMarker[0] );
+								var precalcDepth = parseInt(precalcMarker[1]);
+
+								//console.log( "expanding " + currentValue + " depth " + precalcDepth  );
+
+								//blinkBuffers[ currentBlink ].push( ...precalc[currentValue][ precalcDepth ] );
+								for( var i = 0 ; i < precalc[currentValue][ precalcDepth ].length ; i++ )
+									blinkBuffers[ currentBlink ].push( precalc[currentValue][ precalcDepth ][i] );
+							} else if(( currentValue >= 0 && currentValue <= maxPercalcNumber ) && ( blinkLimit - currentBlink > precalc[currentValue].length )){
+									/*for( var i = 0 ; i < precalc[currentValue][ precalc[currentValue].length - 1 ].length ; i++ ){
+										//console.log( "precalc answer: " + val.toString() );
+										blinkBuffers[ currentBlink + precalc[currentValue].length ].push( precalc[currentValue][ precalc[currentValue].length - 1][i] );
+									}*/
+
+								    //blinkBuffers[ currentBlink + precalc[currentValue].length ].push( ...precalc[currentValue][ precalc[currentValue].length - 1] );
+									blinkBuffers[ currentBlink + precalc[currentValue].length ].push( parseFloat(currentValue + "." + (precalc[currentValue].length - 1)) );
+
+									//blinkBuffers[ currentBlink + precalc[currentValue].length ] = blinkBuffers[ currentBlink + precalc[currentValue].length ].concat( precalc[currentValue][ precalc[currentValue].length - 1] );
+									//console.log( currentBlink + ":(" + currentValue + ") added " + (precalc[currentValue][ precalc[currentValue].length - 1 ].length) + " items at depth " + (currentBlink + precalc[currentValue].length) );
+							} else if(( currentValue >= 0 && currentValue <= maxPercalcNumber ) && (blinkLimit != currentBlink + 1 )) {
+									part2total += precalc[currentValue][blinkLimit - currentBlink - 1].length;
+									//console.log( currentBlink + ":(" + currentValue + "): at depth " + currentBlink + " using offset " + (blinkLimit - currentBlink - 1) + " adding " + precalc[currentValue][blinkLimit - currentBlink].length + " totaling " + part2total + " NO MATH" );
+									//console.log( currentBlink + ":(" + currentValue + "): at depth " + currentBlink + " using offset " + (blinkLimit - currentBlink - 2) + " adding " + precalc[currentValue][blinkLimit - currentBlink - 2].length + " totaling " + part2total + " NO MATH" );
+							
+							} else if( currentValue == 0 ){
+								if( currentBlink < blinkLimit - 1 ){
+									blinkBuffers[ currentBlink + 1 ].push( 1 );
+								} else {
+									part2total++;
+								}
+							} else {
+								var numberString = currentValue.toString();
+								if( numberString.length % 2 == 0 ){
+									if( currentBlink < blinkLimit - 1 ){
+										var midPoint = ( numberString.length / 2 );
+										blinkBuffers[ currentBlink + 1 ].push( parseInt( numberString.substring(0, midPoint ) ) );
+										blinkBuffers[ currentBlink + 1 ].push( parseInt( numberString.substring(midPoint, numberString.length ) ) );
+									} else {
+										part2total += 2;
+									}
+								} else if( currentBlink < blinkLimit - 1  ) {
+									blinkBuffers[ currentBlink + 1 ].push( currentValue * 2024 );
+								} else {
+									part2total++;
+								}
+							}
+							//console.log( output + "\t\tAFTER (c=" + part2total + " l=" + blinkBuffers[ currentBlink ].length + ")" );
+						}// else {
+						//	console.log( currentBlink + " skipped due to no data"  );
+						//}
+
+						if( blinkBuffers[ currentBlink ].length < 1 ){
+							blankBuffers++;
+							//console.log( sequence[ s ] + ": buffer  " + currentBlink + " depleted at " +  ((new Date() - startTime) / 1000 ).toFixed(2) + " total= " + part2total + "\n" );
+						}
+						//console.log( currentBlink + " blink | current depth length " + blinkBuffers[ currentBlink ].length + " blankBuffers=" + blankBuffers + " Completed at " +  ((new Date() - startTime) / 1000 ).toFixed(2) + " total= " + part2total + "\n" );
+
+					}
+
+					if( limiter % 1000 == 0 )
+						console.log( sequence[ s ] + ": step " + limiter + " contact=" + contactDepth + " blankBuffers=" + blankBuffers + " Completed at " +  ((new Date() - startTime) / 1000 ).toFixed(2) + " total= " + part2total + "\n" );
+
+				} while( blankBuffers < blinkLimit  );
+
+				console.log( "iteration " + s + " Completed at " +  ((new Date() - startTime) / 1000 ).toFixed(2) + " total= " + part2total + "\n" );
+			}
+
+			document.getElementById("part1").value = part1total;
+			document.getElementById("part2").value = part2total;
+
+			debug.value += "\n==============================\nRun Completed in " +  ((new Date() - startTime) / 1000 ).toFixed(2)  + " seconds\n";
+		}
+
+		</script>
+		<div align="center">
+
+			<!-- UPDATE SUBMISSION DAY HERE -->
+			<!-- Page Title -->
+			<h1 style="color: #00cc00;">Advent of Code 2024: Day 11 Submission ( <a href="https://adventofcode.com/2024/day/11" target="_blank">Overview</a> | <a href="https://github.com/mrabear/aoc_2024" target="_blank">Github</a> )</h1>
+
+			<!-- COPY/PASTE SOURCE INPUT HERE -->
+			<!-- Input Box -->
+			<font style="color: #00cc00;">Input:</font><br>
+			<textarea id="input" cols="80" rows="10" style="font-size: 16px; border:solid 1px #00cc00;">4 4841539 66 5279 49207 134 609568 0</textarea><br><br>
+
+			<!-- The 'run simulation' button and result fields -->
+			<div style="display: inline-block;  border: 1px solid #00cc00; padding: 10px; margin-left: 10px;">
+				<input type="button" onclick="solveThatShit();" value="[ Run Simulation ]"  style="background: transparent; border: 0; font-family: inherit; font-size: 26px; margin: 0; padding: 0; color: #009900; cursor: pointer;"><br>
+
+				<p style="color: #00cc00;">
+				    Part 1 Result: <input type = "text"  id = "part1" value = "" size=46/><input type="button" onclick="document.getElementById('part1').select();document.execCommand('copy');window.getSelection().removeAllRanges();" value="[ Copy ]"  style="background: transparent; border: 0; font-family: inherit; font-size: 16px; margin: 0; padding: 0; color: #009900; cursor: pointer;"><br>
+				    Part 2 Result: <input type = "text"  id = "part2" value = "" size=46/><input type="button" onclick="document.getElementById('part2').select();document.execCommand('copy');window.getSelection().removeAllRanges();" value="[ Copy ]"  style="background: transparent; border: 0; font-family: inherit; font-size: 16px; margin: 0; padding: 0; color: #009900; cursor: pointer;"><br>
+				</p>
+			</div>
+
+			<!-- Debug Output Box -->
+			<br><br>
+
+		    <font style="color: #00cc00;">Debug Output:</font><br>
+
+		    <textarea id="debug" name="Text1" cols="80" rows="15" style="font-size: 16px; border:solid 1px #00cc00;"></textarea>
+		</div>
+	</body>
+</html>
