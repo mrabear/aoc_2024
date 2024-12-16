@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html>
+	<!-- Brian's Advent of Code Solution Template -->
+
+	<!-- stealing the advent of code style -->
+	<head>
+		<link href='http://fonts.googleapis.com/css?family=Source+Code+Pro:300&subset=latin,latin-ext' rel='stylesheet' type='text/css'>
+		<link rel="stylesheet" type="text/css" href="https://adventofcode.com/static/style.css?16"/>
+		<link rel="stylesheet alternate" type="text/css" href="https://adventofcode.com/static/highcontrast.css?0" title="High Contrast"/>
+	</head>
+
+	<body style="font-family: 'Source Code Pro', monospace; font-size: 14pt; min-width: 0px;">
+
+      	<script type="text/javascript">
+
+		var grid = [[],[]];
+		var gridXLength;
+		var gridYLength;
+
+		const BOX_ICON = "O";
+		const BIGBOX_L_ICON = "[";
+		const BIGBOX_R_ICON = "]";
+		const ROBOT_ICON = "@";
+		const BLOCK_ICON = "#";
+		const EMPTY_ICON = ".";
+
+		var commandMap = {	"^": {x:  0, y: -1}, 
+							">": {x:  1, y:  0}, 
+							"v": {x:  0, y:  1}, 
+							"<": {x: -1, y:  0} };
+
+		var robot = new Robot();
+		var touchers = [];
+      	
+      	function Point( x, y , value ){
+      		this.x = x;
+      		this.y = y;
+      		this.value = value;
+	      	this.toString = function(){ return( `(${this.x},${this.y})` ) };
+      	}
+
+      	function Robot(){
+      		this.x = -1;
+      		this.y = -1;
+      		this.xdif = 0;
+      		this.ydif = 0;
+      		this.currentCommand = "";
+      		this.commandIndex = 0;
+      		this.commandString = "";
+	      	this.toString = function(){ return( `(${this.x},${this.y})` ) };
+
+	      	this.reset = function( x, y ){
+	      		this.commandIndex = 0;
+	      		this.x = x;
+	      		this.y = y;
+
+	      	}
+
+	      	this.loadNextMove = function(){
+				this.currentCommand = this.commandString.charAt( this.commandIndex );
+				this.xdif = commandMap[this.currentCommand].x;
+				this.ydif = commandMap[this.currentCommand].y;
+	      		this.commandIndex++;
+	      	}
+
+	      	this.makeMove = function(){
+	      		if( this.moveAvailable() ){
+		      		this.loadNextMove();
+
+					if( this.peekNextMove() == EMPTY_ICON ) {
+						//console.log( "found empty: moving this turn" );
+			      		setSafeGridValue( this.x, this.y, EMPTY_ICON );
+			      		this.x += this.xdif;
+			      		this.y += this.ydif;
+			      		setSafeGridValue( this.x, this.y, ROBOT_ICON );
+			      	} else if( this.peekNextMove() == BOX_ICON ) {
+			      		var [ testX, testY ] = this.getNextMove();
+			      		while( getSafeGridValue( testX, testY ) == BOX_ICON ){
+				      		testX += this.xdif;
+				      		testY += this.ydif;
+			      		}
+
+			      		if( getSafeGridValue( testX, testY) == EMPTY_ICON ){
+			      			while( (testX - this.xdif != this.x) || (testY - this.ydif != this.y) ){
+					      		setSafeGridValue( testX, testY, BOX_ICON );
+					      		testX -= this.xdif;
+					      		testY -= this.ydif;
+					      	}
+					      	setSafeGridValue( testX, testY, ROBOT_ICON );
+					      	this.x = testX;
+					      	this.y = testY;
+					      	setSafeGridValue( testX - this.xdif, testY - this.ydif, EMPTY_ICON );
+			      		}
+			      	} else if( isBigBox( this.peekNextMove() ) ){
+			      		var [ testX, testY ] = this.getNextMove();
+
+			      		if( this.xdif != 0 ){
+				      		while( isBigBox( getSafeGridValue( testX, testY ) ) )
+					      		testX += this.xdif;
+
+				      		if( getSafeGridValue( testX, testY) == EMPTY_ICON ){
+				      			while( (testX - this.xdif != this.x) || (testY - this.ydif != this.y) ){
+						      		setSafeGridValue( testX, testY, getSafeGridValue( testX - this.xdif, testY - this.ydif ) );
+						      		testX -= this.xdif;
+						      		testY -= this.ydif;
+						      	}
+						      	setSafeGridValue( testX, testY, ROBOT_ICON );
+						      	this.x = testX;
+						      	this.y = testY;
+						      	setSafeGridValue( testX - this.xdif, testY - this.ydif, EMPTY_ICON );
+						    }
+			      		} else {
+			      			var isValidMove = findAllTouchers( testX, testY, this.ydif, 0 );
+
+			      			if( isValidMove ){
+			      				var cleanupPoints = [];
+
+				      			for( var box of touchers ){
+					      			for( var checkbox of touchers )
+				      				if( checkbox.x != box.x && checkbox.y != box.y - this.ydif )
+				      					cleanupPoints.push( box );
+								}			      				
+
+				      			for( var box of cleanupPoints ){
+				      				setSafeGridValue( box.x, box.y, EMPTY_ICON );
+				      			}
+
+				      			for( var box of touchers ){
+				      				setSafeGridValue( box.x, box.y + this.ydif, box.value );
+				      			}
+
+				      			setSafeGridValue( this.x, this.y, EMPTY_ICON );
+				      			this.y = this.y + this.ydif;
+								setSafeGridValue( this.x, this.y, ROBOT_ICON );
+
+								if( getSafeGridValue( this.x + 1, this.y ) == BIGBOX_R_ICON )
+									setSafeGridValue( this.x + 1, this.y, EMPTY_ICON );
+								else if( getSafeGridValue( this.x - 1, this.y ) == BIGBOX_L_ICON )
+									setSafeGridValue( this.x - 1, this.y, EMPTY_ICON );
+							}
+			      		}
+			      	}
+		      	}
+	      	}
+
+	      	this.getNextMove = function(){
+	      		return( [this.x + this.xdif, this.y + this.ydif] );
+	      	}
+
+	      	this.peekNextMove = function(){
+	      		return( getSafeGridValue( this.x + this.xdif, this.y + this.ydif ) );
+	      	}
+
+	      	this.moveAvailable = function(){
+	      		if( this.commandIndex < this.commandString.length )
+	      			return( true );
+	      		else
+	      			return( false );
+	      	}
+      	}
+
+		// Solve that shit
+      	function solveThatShit(){
+      		var startTime = new Date();
+      		var input = new Array();
+			var debug = document.getElementById("debug");
+			input = document.getElementById("input").value.split("\n");
+
+			console.log( `Starting Run ${input.length} lines of input)\n ==============================\n` );
+
+			var gridEnd = 0;
+			for( var i = 0 ; i < input.length ; i++ ){
+				if( gridEnd > 0 ){
+					robot.commandString += input[i];
+				} else if( input[i] == "" ){
+					gridEnd = i;
+				} else{
+					grid[i] = input[i].split("");
+					var robotX = input[i].search( ROBOT_ICON );
+					if( robotX >= 0 )
+						robot.reset( robotX, i );
+				}
+			}
+
+			gridXLength = grid[0].length;
+			gridYLength = grid.length;
+			while( robot.moveAvailable() )
+				robot.makeMove();
+
+			// INSERT SOLUTION HERE
+
+			document.getElementById("part1").value = calculatePart1Score();
+
+			grid = [[],[]];
+
+			for( var i = 0 ; i < gridEnd ; i++ ){
+				input[i] = input[i].replace( /#/g, "##" );
+				input[i] = input[i].replace( /O/g, "[]" );
+				input[i] = input[i].replace( /\./g, ".." );
+				input[i] = input[i].replace( /@/g, "@." );
+				grid[i] = input[i].split("");
+				var robotX = input[i].search( ROBOT_ICON );
+				if( robotX >= 0 )
+					robot.reset( robotX, i );
+			}
+
+			gridXLength = grid[0].length;
+			gridYLength = grid.length;
+
+			while( robot.moveAvailable() )
+				robot.makeMove();
+
+			document.getElementById("part2").value = calculatePart2Score();
+
+			console.log += "\n==============================\nRun Completed in " +  ((new Date() - startTime) / 1000 ).toFixed(2)  + " seconds\n";
+		}
+
+		function printGrid(){
+			var buffer = "";
+			for( var line of grid )
+				buffer += line.join("") + "\n";
+			console.log( buffer );
+		}
+		
+		function getSafeGridValue( x, y ){
+			if( ( x >= 0 && x < gridXLength ) &&
+				( y >= 0 && y < gridYLength ) )
+				return( grid[y][x] );
+			else
+				return("");
+		}
+
+		function setSafeGridValue( x, y, value ){
+			if( ( x >= 0 && x < gridXLength ) &&
+				( y >= 0 && y < gridYLength ) ){
+				grid[y][x] = value;
+				return( true );
+			} else {
+				return( false );
+			}
+		}
+
+		function calculatePart1Score(){
+			var score = 0;
+			for( var y = 0 ; y < gridYLength ; y++ )
+				for( var x = 0 ; x < gridXLength ; x++ )
+					if( getSafeGridValue( x, y ) == BOX_ICON )
+						score += (y * 100) + x;
+			return( score );
+		}
+
+		function calculatePart2Score(){
+			var score = 0;
+			for( var y = 0 ; y < gridYLength ; y++ )
+				for( var x = 0 ; x < gridXLength ; x++ )
+					if( getSafeGridValue( x, y ) == BIGBOX_L_ICON )
+						score += (y * 100) + x;
+			return( score );
+		}
+
+		function isBigBox( ch ){
+			if( ch == BIGBOX_L_ICON || ch == BIGBOX_R_ICON )
+				return( true );
+			else
+				return( false );
+		}
+
+		function findAllTouchers( x, y, ydif, depth ){
+			if( depth == 0 ) touchers = [];
+			var validMove = true;
+
+			if( getSafeGridValue( x, y ) == BLOCK_ICON ){
+				return( false )
+			} else if( getSafeGridValue( x, y ) == EMPTY_ICON ){
+				return( true );
+			} else if( isBigBox( getSafeGridValue( x, y ) ) ){
+
+				validMove = validMove && findAllTouchers( x, y + ydif, ydif, depth+1 );
+				touchers.push( new Point( x, y, getSafeGridValue( x, y ) ) );
+
+				var offsetX =0;
+				if( getSafeGridValue( x, y ) == BIGBOX_R_ICON )
+					offsetX = -1;
+				else
+					offsetX = 1;
+
+				touchers.push( new Point( x + offsetX, y, getSafeGridValue( x + offsetX, y ) ) );
+
+				validMove = validMove && findAllTouchers( x + offsetX, y + ydif, ydif, depth+1 );
+
+				return( validMove );
+			} else {
+				return( false );
+			}
+		}
+
+		</script>
+		<div align="center">
+
+			<!-- UPDATE SUBMISSION DAY HERE -->
+			<!-- Page Title -->
+			<h1 style="color: #00cc00;">Advent of Code 2024: Day 15 Submission ( <a href="https://adventofcode.com/2024/day/15" target="_blank">Overview</a> | <a href="https://github.com/mrabear/aoc_2024" target="_blank">Github</a> )</h1>
+
+			<!-- COPY/PASTE SOURCE INPUT HERE -->
+			<!-- Input Box -->
+			<font style="color: #00cc00;">Input:</font><br>
+			<textarea id="input" cols="80" rows="10" style="font-size: 16px; border:solid 1px #00cc00;">##################################################
+#OOO.O.#...O.O..#.....OO...#.....OO.O..OO.....#..#
+##.O...O.OO#.#.O.#.O.O...O#.OO.....OO..OO.O..#...#
+#OO.O....O....O..........O.O...O........#.OOO....#
+#..#.O#..O.O..O.O#..OOO...OO.#......O...O.O.#.OOO#
+#...#..OO..........O.O...O....#....O#OO.O..O.#.#.#
+#.#.O....O..OO....O#....O..OO...#.......O..O.O...#
+#O...O.#OO..O...........OO.....#O...O.O.#.OO.OO..#
+#O.O......O..#..O.#.##OO........#..##O.O#......#.#
+#..O........#............OO...OO...OO###..O.OO.OO#
+#..O..OO.......O.......#O..O#O..#.O..O...#......O#
+#OO..#........#.O..O........O.OO.O#...O#......#..#
+#.......#...#.....#..O.O.......OOOO#....O..#.....#
+#....O....O.O.OO#OO#..OO.....#.##..O#O.....OO..O.#
+#...OOO..O...OO..O..O.OO.O.#O..#O#..O.O...O...#.O#
+#O.O...O..O....#.OO....O......O....#...#.O.OOO#.O#
+#O#O#.O#......O.OO.O..O....#..#O......O....O.O..O#
+#...##..O.O......O.#.O.O...O...O....OO.....O..O..#
+#O..#.O...O.O..O....#.O....O....##O..O.OOOO.....O#
+#.O.O...O.#..OO.....O.#..#..#....OO.......O.#OOO.#
+#.O#...O..O...#...#..OO..OO.OO.OO..O#.....O...O.O#
+#...O.O.OO.O.O.O.........O.........O..........O#.#
+#....#....O##.OO.OO......O.OO.#.O.#.O...O....O..##
+#..O...O..O.O..#O.O..OO.OOOO..............O#O....#
+#...O#OO....OO.O..OO.OO.@....OO.O...O....O.O...#O#
+#...O....O..#.##..O....OO.O.O.O..#.OO.#OO....O.OO#
+#..O.O..#.O......#O..#O.O.#....O....#...O...O..OO#
+#..O...OO.....O.O..O.O..O......O.OO.OOO...OO.O#..#
+#....#.O..OOOOOOO..O#.O....O.O..OOO.O...#.O...OOO#
+#O...O...O#...##...O....OO...O.O.OOO.O#.#....OO.O#
+#..O.#.O#.OO..O.O.#..OOOO##O.O....OO.O.O.O#O.OOO##
+#.O.O..O.....O..OO..O...O.............O.O........#
+#.O.O.....O#OOO..#O#O...O.O.O..O.OO...#OO....O.OO#
+#....#....O#OO...O..#...O.O...O...............#O.#
+##....##...O#..O.OO.O..O.O..#..OO.O#....O.O..#O.O#
+#O...O.O...........O##..#.O......#..#.#..O.O#..OO#
+#.#.O.O...OO..OO.O......O..O.OO.O.......O..#.#...#
+#.......O..#..#...#.......#OO.OO...OOOO.......#..#
+#.#.......O.......#....OOO......#....O.O.O....O..#
+#O#O..#..OOOO..OO.O....O.O......O##.OO......O.O..#
+#..OOO.....OO..#......OO.##.O..OO...O.....OO....##
+#.OO...OO..O#..O.#O.O..OOO..OO.O.OO......O....OO.#
+#O..O.......O.O....OO....#.......O.....#.O.......#
+#...O#...OO..#O##.O.O.O#O..OO...OO.O.OOO...O...O.#
+#.#...OO.....O.#.OO...OO..#O...O...O.....O..O..O.#
+#..#O......OO.....O..##...OOO..O.OO..O....#...#OO#
+#......OO..##...OO.....#.....###...#O#O....#.....#
+#O.#O#......#..OO........O#.OO........O...O......#
+#...O..#...#O.....OOO...O..#.O..O.#O.O..O.....O..#
+##################################################
+
+^<>^<^>v^^^v><^<^v^<><><^^^>><>>vvv<vv>^^^^v^<v^v>>v>><<^>>^v<<>vvv<^>^<^<<vv^>>><>vv^>vv^>^<vv<^^><^>>v<vvv^^^v^v^>>>><vv><>^v^v<<^<>><v^v>^<v^^><<><vv>vv^vv<<<vv^^<<v<v><<^^<v<<>v^^^<^^^>>>v^^<>>^^>>><><^<><><v>vvv<^<v^v^<>^><><>>^>v<^>>><<v<>^>^v^v>v>^>v^v<v<>^v<^^<<^vv<^v><^v<><>vv><^<v>>^<>v<vv<<v<<<v>v^>>>^><>vvv><v<>^<v<vv>^<^>^>^v<v<^<<>><^<^v<^^>^><^<>^v^^<^v>>v<<v><^<^><^><^><<<>^>>>>v^>>>^>v<<<>v^<v^^v<^>><<^<><<^v^v^^^^>^^^v^<<v^^<^>v>><<^v<><^^^<vv>v>^^v^v<vv>><^>v<^^^^<>>>v<<<><<<v^^v^v<^^<>v^vvv^^<>v><>v^^>>v^>v<^vv^v^>>v>^vv><><<^>^>v^^>v^>>^^>v^<<>>^^v^^^>>v><<<<v<<v<v^><v>^<^>^^^<v^vv<><<v^^>^>v><v<>^>><v^<^><^vv<>>^vv><v^>>>^<><vvv^^<v>^^^<>^v^^<><v<>vvv>><>>>^^>^<>v>>v<^^v>^<^^v<v>>v<^^v<v>^<>v>^^<<^<vvv^<<v^<<<><>>>^><^<v^^<v>^v><^<<<<>^v>><><^>^^v^>^<v<>^<vvv>>vv>v>><>^<>>^<v^^<><^>v><<<>>>^vv<<^>vvv<^v<v<<vv^v><<v^<v>><>v^<<<^><<<<<v<v^>v^>>v^>vv^><v^><<>><<^>>>^<v<><v^<<^<>^<vvv^>>v^><><>v^>>><v>^v><^v^<v<><><vv>><v>v^<>v^vvv^>>>v><<<v<<>v<>^<>v^^^^v>v>>v^<^<^<<
+>>v^><^^^^><^<<vv^^v<^<><><vv<^<v^^><<<^>>vv<v^<^<v><^v^>^v>vv>><^^^^<v>>^v>^><v>>vv>^vvvv^^v^vv><v>>v^^>^vv>>vv^v>vvv>v^<v<^<<^^v^^>><><^>>><<v<>^<<>><>^>^v<<<vv^>>>>>>v>vv>^^v<<^^>v<v^>v>v^<^>vv^<^vv<^v^>^^v^v><>^>^v<>^^><v>v^<^v^><<>^<vv<>>^^<>v><^>><v>v<^>^^<<v<>^^^^>>vv^^^>^>^^v<>^>v>v^v<^^<>^v>v<v^<v<v>v>>>v><^vv^<<v<^<vvvv<^^v^<^><^vv><^^<^>v^>^^^^^<>v>vvv>^^<^<v><>><>^v>v^v^<^<>v>^>^^^><v>v>^<>^<<^v><>^^v<<v>^<><^>>vvvv^<>><v^vvv>^><^<<<<v^<<^^<<>><<^^><v^v^<>v>v>v^^>v<<^>v^vv<vv^>vvv<v>^v^^<v^v<vv<<v<^>>>>^^<v<v<>><>v>v>^>vv^v^<v>v^><vv<>vv>v^<^^<v^^<<><>>vv<v^<vv^^>>>^^^<>v>>vvv^>><<^>v<^^><<vv><<^<vv><^><v>><^^<<^v>^^><<<>^^>><v>>><v<<<<v^>^^>v>v^<^<<>vvvvv<<<^v>vvv<>^^<<^vv<><v^>^v^>^v>>v>v<>^<<^<>v>^>><^>^><>^<<^v^vv<<^><<^<^>v^^>^<<<v>^<v<v>v^v<v>>^vv>^<^>^>><^>^vvvvvv>^>^<><v<>>>vvv^>v^^<>v<^>v>v<<><<^>^v>^><v^>v^<^<>v^<<v><>^>^^v<^>>^vv^<>^v<><^>>v^>^<<^vv<^>vvv^>v><<>^^^v>v<<^>><vvvvvv><>^<><<<>>v<>>v<v^^>vv^>><<^v>>>v>^v>><^>^v>^>^^<v<<vvv^v<>^^v^<<v<^^>v^>>^<v>^^^vvv
+v<<^<^><><>^>v^><vv^<<<<^>^^>>^<<^^<>^^^v<<v^<v<>><v<<^<><^^v<<<>v<^vvv>v^v^<<>>vv>^^v<^<v^<<<vv^>vv>>>>>>^<^^>^v<<^<<>^^>^>^><v^^v<vvv<v^>^^<^<<vv^<<^>>><^<>v^<>><^<<<v<^^<v^<>v<>^<<><v^<<>>>^v^>>^^v<<>v<v^v^v>^>^^>>^vv^>^<^^^<^^v^><>><vv<^>>v>>^v<^>vvv^>^^<v<^>>^><v^<v<v<<^<><<>^><<^>v^^v>^^v<<<vv>>^<<><v>><<vv^vv>^<v>v^^v><><><<>^>>vv^^>v^>v<<<^^<^>^vv><^^>>^v^^<<^vvvv^v>>v<vv^<>>>v^<^>>>^^<>^<v>>vv^v^<<^^v>^vvvv>^v<>vv<<<><v^^v><vvv<<<v>^><vvv>v<<^><^^><<<^^^^^>v>^vvvvv>^>^<v>^>v>>vv^<^<^v<<^>^>vv<<v>^>>v>v<>><<><><v^>>v^v>^v>^<v^<<^>^>>vv>>v<<<><^>>>vv^>v<vv>>v^vvv>><<^<v>^<^<>>v<<v>>>^><>^^^^vv<^^<^vv><vv<^>>v^<v^v>^v^>>^v>^><v>v^>^>^vv>^^<v>^>>^>^v<^^^v^>>>^>^><vv<<^<^<^>v^<<^^>^<^>vv<^^^v^^>^^v<>^^<^v^<^>^^><><>v^vv^>^>>>>^>v>vv><^vv<<<^>^<<^v^<^>><<^<>^><>^v^>vv>^v>>v<>v<<v^^><v^<^<v^vvvv<>^v<><vv^<<^^v^><>>>^^^<<^>>>v<<>>vv<v<v><v>v>><v>>^>v^v<v^<^^>^vv>>>v<^<<<v^v<<>v><vvv<v<^>^><>v^^^><<^<<>><<<<^>^<>>^^^>^>vvv<<<<v>>v^<vv><><^<v^v^<><v^^>^<^<^>^^v^>v^<v><v<><v>>><<vv<>><>^
+>v^vv>^^>^v^>^<>><^vv<>>^v>v<<<^<<^>>>>^^v^>v^<vvv>>>^><<<^^v<v>^>^^^>><><<^vvvvv^<>^>^>^<^^<>^>vv<>^>^>v>^>>vv<v^<>>v^<<^^v^^v<v^>^^v<<>^^v<>v>vv<^<v<<<<<>^><<^<^^>vv>^<v<><^<^vvv<>>^><^^<>vvvv<<^^><<v<<v<<v>vvv^>^<><<^>>v><vv>v><vv<^<<<<<<^><<>v^vvv<>v>>>^<v>>v<^>v^v^^<^>>><>>>^<>v<>>>>>>><v^vv>><>v>v<<<v<<>v^>v<<vvv>^^<>><>><^^^^^^v>vv^<^^<><>^vv<v>^v^<<^v>>^v^v>^v>vv<^<<^v<>vv<>vv>v>^vv^<^>vv>v<v<>^^v>v<v^>v^<>v^^>^<^^vv<<><>>^>vv^<^>v^vvvv^v^<^v<<v^<>v<^<^^>v^^>^v><^v>v<v<>>>^^vv<v><^v<<<>^<^>v<<<v><<^<^>v<>^vvv<<<<v^<>v^>v^^<^^v<>><<><^<>>^vv>^^<>v<^^<>^>^<v^^^<^<^>^v<^<^^vvvvv<v>>^>^<v<v^^>v>^>vv^v><>^<v^>^>v>>^^^vv^<<^v^v^v^<v^<vv<<^<<<^><<<><v^v^>>><^<><>>^>v<>v>v>>>v>^^>><>>v<^<>^<>>^v>>>v^>>>v>v<^<^v<vv^v>>v^<<^v<v<<<^<>>>^<v<><><vv<<<><^^vv^<>vv<^<<><>>^v<>>v^vv^<<<^vv^vv^^v<^v<<v>>>^v>^<>^v>v<<^vv^>>^^^<^>><v<<<><v<v^vv<v>>><vv>>^<<<^v>v<>><<v<v^^^<<v>^v>^><<^><>vvv^^^vv^><><v^^><v>><><>^vv><vvv<v>^>^^<^>v^<vv<<<<>v<v>^^^^><^v>>^<^<>^<^^v<^^>>>>>><^<^v<^v<v<vv^>v<^>v<>^>>>
+<<^>v>><>><><<>><v^>^>>^>^<>^^v<<<v^v<vv^<><^>^v><^><>vvvv^<^^>>v<<v^<^v<<vv<vv>>^>^v>^v>>^vv>^<>^v><^<^vv^vv^^<<>^^v^v>^v<>>vv<>v>vv<^<vvvv^<^>^v^v^<<vvv<v<^><><^>^^>^<>v<^v>^<>v<^<^<^>>^<<^^<v^^^^>v^vv^><<v^^v>^<>^v^>^^v>^>><^>^>^^v><<^<^>v<^><v>>>v>v^>^<<v<><^><^^<>^^vvv^v<v>><v><v^v^>v<><<v<<v^^>^<>v<v<><<vv><^><>^<v>>v^^>v>^^^>v^v<<>>>^v<><>^v^<^<><^v>>v<<<^v<v^^^v^^<^^v>>^v^^v^>^<<^<v>^<v<>>v^>^v<^^<>><><^v>^<><<>^><<>>v>^^v^><>>>>v<<><>>^^>^^vvv<<v^><>><>v<<<vv^>v^v>vvv<^><v^>^vv><v>>>v>>^><^vv<^^<^^^<>v>^<^<vvv<>><vv<v^vv^^v>v^>vvv>^^<vv<<>><v^^vvv>^<<<>^v>vv>><<^v^>v^>^<<>^>v<>><^^>^v>^><^>><>^v<>v^<><^>^<<v<>>^>>^>>>^<<<v<v<<^vv<^><<v^>v<<>>v^>^^v<v^<>><><v^>>v^<<v<>^>^<<>^<^^v<v^><^v>^^<>>v<>>>^><>v^>^^^^>v^<>>^^^<<<v^>v^<>>>v>>^^>vv>>><<^>v<^<^>v<<^^<<>>>^^<^>>>^>^<<^^vvv>>^>>v^<>^v<><<^>><>v>v>v<>^^v>^<vv<<^<^^v^<<>>vv>>v<^^^v><>v>^v^<>><^^^vv^>^^vv<>><vv<<^<<v^^<v>>><^<>v><^>vv>>v^^^>v>v>>vvv<>^>^^<^vv^<^<>^><^<>^><v^<>^><<v^v>v^v>^^>v^^>vv^>^v>^>>v>^>v<<^v<^<>>vvv<^^vv^<
+<<vvvv^<>>>vvv><<v<>^<>>^^>v<<v<^^v>>^v^^^v<>v^^v^>^^<^^<^^><<^^^>^^><>v<^^><^<<vv^v<<>v>><^^<^>^<v^>>v<^vvv<^^>>><>><v>vvvv^<<<v>><vv^vvv^><>^<>vvv^<vv>>v^^^v<^^^^^<^^<<><^^^^v<<>><^>>v<vv>>>>>v^v>v><<^>v<^^<><<>v<<<v^^^><v^^v>^<>^<^>^v><v>v^<>^v<>><v^vvv<<<<><<<^^<v^>v^v<<^^><>><v<^^^v<<^^<^>vv<<v<<^><<^<>><^^><v<>>^<>^<<^^<v^vv^vvv^>>><vv<<>>>><<><>^>^^>>v^v^>^>v>v>vv<><v<v^^^^vv>>^^>><<^v^>^vv>>v>><<><>^^vv^v^>>vv^>v^>^>vv<v>vv<^>^>^><^>v^<^^vv>>^<v<^><>^^^^<^><<^<^^^v>v^<<><<vv>v<vvv>><v<<<^<^^>>v><^>^vvv<v^v<^><^<v>><<<v<<^^v<<vv>^vv<vv<<>vv>v>v>v>><><<<>v^v>^^v<v><v>v<>^^>><>>>^>v<v^v>>^^v^^<>^>^^vv<><<<v<^<v<^<v>v<^<^vv<v<<><v<<v^^^v<>v^vvv<<v<>>>^^^v>v^<<<^^>^>v^^v^>^>^vv><^^^>vv<v<<^v^v>>v^<^^^v^^<vv<<<><v><>>^vvv<v^vvv<<v^vv<v^v^>vv<v<>>^<>>><^><><<<v>^>>>^<<<v>>v^v^<>>v^^^vv^^<>^><^<>>>v<v<><^>v^<vvvvvv^<<vv<<>^^>>vv<^<>v^>>><vv><v>>^>><>^<<<v><>^<v^^<v<vvv^v>v^v>vvvv^^v^v^v>><<>>><^^>><v^>v>v<^>^<>^<><<<v^>v^v^><>^><v<>^v>^^><^^vvv^><><<vv><<^>^<<<<v><<^^>^<v<>vvv<v^>^v<v^
+^v<>^^^<<<v^v^vv<^<>>^^<v>^>><<^v^<^>>^v<v>^v^><<>v<<^<^<<^>v^<v^>>v>^v^^vv>^><<^v>^<^>^>v^^v<<><>^>^<>><^><<^v<<vv>^vv^v^>^^>^^>^<<^<<^<<v<v^^><v^^>v^>^>>>vv^<>>^<>v>>>^><<<><>^>^<^v>>^<v^>>>>v<>v<^vv^<v>^<v>^>v<v<>>v^>vv<^<><>vv>^^<v<><<^v^>^v^vv>v<<v^v<>v^v>v><^^<v^>v^^v<><v^>vv^>^<>v^<vvv<vv>^>^vv>v^<>vvv<^vv<>^^<<^^<<vvv>>v^v^<^^^<v<^v^^<>^>^^<>>^^v^v^><^v><>^><v<v^<>v^><>^vv<^<<>vvv^^<v^<^>><v>v>^v>v>^^v><v<v<vv^>>vv><^<>^>vv<>v<>>>^<>^^^vv>v^>v<>v^vv^^<vv<v<v>vv>><v^vv>><>v<vv>^><<vv<>v^<<>^<><v<>vv><<<^<>>v^<>^><^<>^>^v^><^^<v<>>vv^><^v^^>v^v<^^^<>^v^^<<><<>v><>>>><>v<<^^^vv>^^>^<<<>>>v>>v>>^>^><vv^^v^vv^^<vv>v^^<v<><^vv><vv<v<v^^>^<<<>^><>^v<v><v^v><>^v>^><<^>^>v><<v<<^^vv^^>^^<^>v>v>^v<<v^v^^vvvv>^<^vv>v>v>>v>>><v<^><^<vv<^>^>v>^^<>^^v>^<<<>^<vvvv><^v>v>^^^>vv^<><v><<<>^^^v<<<<<<>v<^v^>>>vv<^<><^>^^>>><>>^>>>><v^<>^^<>^^^><v<<^vvv>vv>v<<<><<v<><v>vv>v>>^v<v>^<vv^>^vv^<v>>v>>><>v^^>><>^^<<>vv^v<>^<<><<v^^>v<^v^>>^<v<v>v><>vvv^<<^>^>v<>^vv<>^>>^<><>>>v^<>v^v^<^>><vv><<<>>^v>vv^
+>v^vv><^>>^v^<<<<>vv>^<vv^<v^vvv^^<><^<v>v^<><<>vvv^<^v^>>><v>v>^^>>^vv^^v><v><><<^>^<v^^v><<>^><>^<v>v^<><><<>v<><^^><^<<>>>v^>>v^^^>^^v<v<<^>><>>v>^^v^<v^^>^^v<^^v^v>^>>v><>vvv>vv^^><<<v^>^><v<v^v>^>>^>^<v>>>^>><>>v<<<<v^v^v<>>^<v>v<<v>^<><vv^>^><<v^v<^>>><>>^v>^v>>v<v^>^<<<^v>>><><^vv>>v<^vvv^>><>>>v<<>vv><>v^^v<v>>v<v^>v><<<v<^>^vv>v<>v^^<<<v<^<>>^<<>^^>^><<^^>^^>v^>>^>v>^v^v>v<>>>^<<<<^v^^>^>^^v>^>^v>^^>^vv<>vv^><v<v>>>^v^>><>><<>v^>>v<^v<><><<<>^v^>>^^<v^>v^^>vvvv>^><<><v^>v^^^^<^><vv<v<v<<<v<<v<v>v<vv^<^v<^v^^v<<^v><^<>^^v<>>^<^<>v>^>><<><v<^>><<>^^^v>^^^>^v^<>v^>><>^<vv^<v<^>>>vvv>^^>vv<^>^<<>^v>><vv<<^>^<^^vv<^>vv<^>^v>>>v^>>^<v>v><><v^<<>v><^<v>^>><>^v<<vv<^><v>>vv>>>^v<^v<<<>v^<>><>^vvvv^vv>>>>^v>><^v><^<v^v>^<<v^^^vv<^v<<<<<^v^>v<v<v^>^v>><<^^><>^>^>^<v^v>v><^<v^<^^v<^^^^<>^<>v^>v<>^v^vv><<<<v^v>^^><v^^^^>>^v>v>v<v>^<v<v<vvv<^<^v>>><^<<>>><<v>>><^v>><v<><v<><^<^^v^^>>>>>>>>^<<<v^>^><^>vvv^^^^<>^<v>vv>^vv^v^>v<>>^>>^><^v<v<<^><vvvv^<^^^<<v^^<v^>><<<^<<<v>v^><>>v<><><^v<^>v^v
+><>^vv<v<^>><^<><<^^^^v<^>v<<><^^^v<vv^v^<^v^<^v<v<>vv<v^<<<^>v^v^^v^>v>><>^^>>>vv^<<^>^>><v^vv^>v>v^^<<>^>v^^v<^v>^>vv^v<><>^>>^>v<<>v^^<^^^>>v>><v^v>><^^^vvv<vv^<v<<^>v<^^v<vv>v<v>v>v^^v^^>^v^>^v^><v><<v>^<v>^<>><v<<>v^<<>v>v<<<^^^v^^<>v<v^>^>>vvv>v><vv<v>v>^v^v<<^^vv><>^v>^v^>>^^v<>v>v<^^^<<<v<>v<v<v>vv^vv><<v^v><vv>>^<>><<^^<v<^>>^v<^vv<<<<>>><>^><<vv^^>v<vvv<<^v>vv><vvv<v^^>>>v^v>><>>^<>v><><v>v<<<<^^<v^<v^>v<<v^<^v<>^>v<<<^^^>^>v<^v^<<^<<>><v><v>><v^<^^^>v<<v>^vv><>>^>>>v^^vv^<>>^^^v^<>><>^vvv^v>^^v>^^<^^v<<^>^><>^v>v<vvv^<<v>vv>>>>^^^><<<>><>v^v<vv>v^^^^<>v<^^v^v<v^vv^v>>>>^^><><>>>>^v^>^v^v^vvvv>^^^<^><>^^<vv><v^<^v<><vvv>v>>><^<^^vv><vv<<>>^^^v^v><>vv><<>^v^>>^v>>><^vv^>>>>vvv^^vvvvvv<^vvvv<<v<<vvv^^^>v^<<^vv^<^>v^><v<>>v^<v^^^^v^^^^<<>>>v^^<^vv>><v<<<v^v^^<>>^vv^<v>>>>v^v<>^^>^>v<><vv^<<v^v>vv<<<<^<<<>^^v^v^^<<v^v^<v^^>><^<>v>^v>vv^><<v^v^^vv><^>><^<^^<v><<v<>^>>>>vvv<^>vv>^>v<>><<^>^vvv^>>v<><^>v^v<^<>>><^^^<v>vv<v^<^>^<<<^^<v^^v<^>^<>^^>v>^<v<>v><>^<<<^^^^<<><^^v>><<<v><^<^
+vv>>^vv^^<^vv<^v>^<>^<v<^v^v^v^^>^^vvv>^<>^<<<<^^><vv^vvvv^>^^>>v<^><v^vv^^^<>>v<^vv^^^<^<<^^<>^<^^<^<v<<^>>>^<^><>>>vv>^>v^^>v><^<^<v>><v<v>>>v<^^>><v^v<vv>^v<vv<>^^<<>>v<v<^^^<<v^^<<^<^^<^<>vv<v>>v<<<<>v<v>><>^^vvv<<>><>>^v<vv<v<v^><^>>^v<v^<>>>>>v>v<>>^<>><>>v<<>v<^>^^v^^vv<<^<<<><^<<vvv<^^>>>v^^^v><<^<^<^^>v<<><<^>>v>^v^<<<^vv>>>^^^vv<<<>^>><>v><<<v^^^<^><>>v>^vvv<<v^>v<v^v>>><<<vv>>^v<^><<^v<<^v^>>>v<^<^>^^><>>v>^^^>vv>vv<v<vv<<<>vv<>v^>^^vv^<>>vvv>^<>v<>vv^v>v^^>>><vvv<v<>>^^v><vv<<vvv<>>v>^^<>^><v^><v^^^^<vv>^<v>v^v^v<>v>^v^v^>^<<v>><vvv^^v<^>>vv><><<v>>>>vv>^^vvv>v<vv<<vv<<^<^><<v>v<<v^v^v<v>>v<<<<^vv>v^^>>v<^>>v^>^<>>v<<^<><vv>v^^^v^>><vv^>>^^<>^<<<>>^<<^v<>^<<<vv>>>^v^<v>^v<<<^^^>v<vv>v>^<>v><>>v<^^<<^^><<^<v^^^^>^>v<>v>^<<<v<>v^^><v>>v^v>vv<>><<>^^^^>>^vv<v^v><>>>vvv^<<v<<v>><<>^^<^>^^><^^v^v^^>v^v^<<^v>>v<v>v><>v>>vvv^v<^<v>>>^^<><v<^v>vv><v<^<^>^>vv^v^<^^vv>^>><v>>^>vvvv<^<vvvvv^>v><>><v>>v<^<^v<v>^>>v^>v^^^vv^v>v<^v>^^>>><v^v<>v>vv<vv^v<v<>^v<^^><v^^^>^<>v^v^v^^vv^<<<v^>>
+^<<v>^v<v^<^^^v^^v><^v>^^^<v>>><<<<^v^><^v>v>>^><<vv<<^<^^v<v>>v>^<>vv>vv^^>>v<<><>v>vvv^v<>v^^<^v<<^^^^<^>>v<<<^^>v>vv<>^^<^^^>^<^v<<><^<v>>vv><<>^vv><^<v><^^^^vv>^^<>>v>^v><v><^v^>vv><<^v>^v<<>v^<>^<^>^><v<>v^>^v<>v>^<<<vvv^^v>>vv>^^^>^^><v<^^><>v>><^v^>^<v^<^^^v^^>v<v>^>><vv^>><<^v<>><<<v>^v<v<>v<^>>^^>^>v>v^^>v>vvv^>>v>>^<<vv><v^vv<>vv<v<v<v<><v>v^^v^<>^^^^v>>^v^<^<^^>><^^<><>^v<^>>^>^^<vv><<<><<^>>v>vv^^v<v^v^v>^<<<<^^^>v><>><vvv>>>>v^v^>>>>>>v^^<<><<^>^<^>^<>v>v><v<v<^<>><><>vvv>>v<<vv^<><>^>^^<^<^v^^>^<<^^<^>^^<<>^><^<^><<<v>v<<>>v^<<>>>^v<>v<vv>>>^vv^>v^>^^v<^^<><>v<>>v^^><v<<<<^^>><vvv><v><<<<v<^<<^vv<>>><>>>^^<>^^^^^^v<v>vv<<<<v^vvv>v^v<^<<^v<>^v>>^v<<<<^<>>vv^vv<v><^>>>>>^v>v>>^^v^<<><<>v<vv<v^vv<v>^<><<<v>^<><^><><vvv>v^^^><vv>>v><^^^<<<><^<^<<>^^^v^v^<vv<<>><v<v^<>^<vv>v><>><^<^^>vv>>v>>><>^<v<v><^v^<v>>^>>v<^v><^^v><v^<^vv<v>^<v><<<>>^vv<^^^<>>><^<^<v<>^<v>><v<<>^<v<v<<>>>>^<v<<<><>><^<>^>>v>^^<>^v^vv^>><^>v<vv<>>v^vv><^^<v^v><^^<v>^^^^<^v^^>v<v^^<^^>v>^><v^<^>>vvv<^>>vv>
+<^<^<v^^v^v>>^>vv>>^><<v^<><>^<^>vv<>^<v<^^<^v<<>^v^^><<<<vv>vvvv>vv<^><v<^<<^v^<v<<><^^>>^><^v^<^^><v>v^<<v>>^>>^^^<>v<v^><>>^^vvvv<^<<<>^<>><^^<v<<^^vv^^>v<<<v>>v<><v<<<^^<^^>^>><^>v^^<>^>><>vv>^^<vv><^^vvv^v<^<^v>^^<v^^<><v<^><v^><^>v>^>>>^<vvv>v>>v^v><>><><<<v^v^^<^v>^>^<>>^^v<><^v^<<^^<^v^vvv>>v^^>>v>><^v^>><<^>>><<>^v<^^^<><v>v<^>>><>v^><v>>vv<<><^><<<<^v<<v<><<v^^<vv><v<<^v>v^<^>>v><<^><^<>^^<vv<<<<^vv<<<>vv>^<<<<<^>^><v>^^><><^^>><<>^^><<^v>^<<>v<>v<v^<^^v><<><<<><>>^<^^v^^<v<vv^>^>v<<^^^<v^v><<^><^^v<>^vv^<<<^<<<v<>v<^^>^><^^<^<^<v><>vv>vv>^^^^<<<<>v<<><<<^^>^>^><v<v<>vv>^><^><<^<<^<>>v<^><>^v<vv^^<<>v<><v<<v>>>><v^<^^<>^>>^<^v^^<>v^v>^<<v>><v^<v<^v>>>^^^v^<>v<<vv><v>><v>v><<^v>^<^<<<^^^<^vv^<>v<<v^v><>^vvv^v^^^>v>>>v^^<^v^^^>^v^^^>v<^v<v><<^>><^v^<vv^<>>^v<v<v<>^v<<>>>>>^v^^v<<>v<<v^>^v<<><v^>vv<vvv>^vv^<^<vv><v^^>><>><<><^v^>v^>^<<>^>^^vv^^<<^>><v^v>^<v<v^^v^<>>vvvv^<>v>v<^><v<v><^^<v^^vv^<^<<<vv>>^v<vvv<v<^>>>v^><>^^^^^^v^<v^<^v<v^>>>v<v<vv<^^<><><v<^v^<^^<<>vv^^^<>^<^^<v><
+>>^v<<v><<^>v><<^<^<<<vvv>^^>>v<>^<^<^^^<v>v<vv^>>v<>v^><>v>^<>vv>><^^<^<>>^vv<vv>^vvvv<<^<>><>v>>^><>v^vv<^v^>v^^vv<<>v<<vv><^^>>v<v>^<>^^^><>v^<<>vv^><<>^>>>>^<^<^^>v>><^^v>v^v<><><^^^^><>^<v^<>^<<>vv<v^>vv<v^^>^^><v>v^v>v^^>>><<^v>>><<<<><<>v>>v<<v^>vv<v^v<^v^v>^>>vv^vvvvv^>v^vv>^<><^><v^v<>^>vv>>^vv^v><^<><v<<>>^><^vv^<v<<v<^<<vv>v^<^v<<<^^v<>><^v<v^^v^<<v<>^>^>>>v<<vvvv><^v<>>><vv<<>>vv^>^^vv>^vv<<<>^v^<vv><v>^v>vvv^^^v<vv<^<<v<>v<^<vv<>>^^<v<><<>v>vvv^>^>vv><<>>v>><<>v<v<<^v^<>>v<>^^^^>><vv^><<>vv^><<<<^<<v<<<<^^v>^vv>>^<^^^<^v><v^vv^<v<<<<<<>><^vv<>v>>v<><<^<>>vv><><vv^><^v<<<^^>>v>^^^^v<<v<v^<<><<^^^vvv^^^v>><v<<<^<>vv^<^^<>v^>>^^v^vv<v^v>^><^^>>^>>vv>v<>^^>v<vv<v^>>v>v^<>v>><^^vvvv^<<<>v<v>^<<^^>^^<vv>^><^vvvv>>v^<v^>^>>>v<<<<<><v<v>v>>v>^>v^<<><^^>><v^^v<^<<<v^<><^<^>^>v<>^>v^^v<vvv>^<<^^>v<vvvvv>><<^>><<v<>^v>v>^v^>v<v^<^v>v^>vv^><<>^^<v<<^<v<>^<vv<^v<>>>>v>>^<<v>>v>v<^<<^v^<><>vvv<^<>v><v^^^^^v^vvv^^>>><<>v<v<v^v<><^^^<^><<><>^>>>>^^>><>^^v<^^^<>^^^><>>>v>^>^<v>v^<>v>^>v>v<
+^>v<v^^<v<v><v>v>^<<<<^><<<v^>^>^^<^^<^<^v<^><^v>^<^vvvv><><<^^<v<v<vv>v>^^<v^><^v>>^>><^v^<^<v<>^<^vv>v^vvv^^><>>v>>^<^^^<><v<^<^^<<^vvvv^>v^^<^>^>v^<>^<<><v<v<<<><v>>>>^^v^^^<>>>>vv<v^<<<<<^><>>^^v<<><<v>>>v<>^<<^<^v><^>v<v>^<vv>^><v<^^^^v^v<<v<v<v>>vv>^^v><><<<vv>^vv^v>v<^^vv^v^^<^<^^vvv^^^^^v^^><vv<^>^^><v^v^>^>^>>>^>v^>v<v<v><^^<>v^vv^vv<>v^^v><v>^v<^^^<v>v><v^>><<^>><^>vvv^vv<^><v^^^vv<>v^^<>^<<^^>vv<<v>^>^>v><<^<v>>^>^v^^>v><>>>^^^^^v^vv<<^<^^v^v<v>vv^vvv>v^<^v^^>v^vv>^<v^<>v^v>>>v<^<v<<>>v^v^<<<v>><<v>><^vv>v>>>>^v><>><>v^vvv>v>^>v>>><<><><v<vv>v<vv^vv<>^v^>^<v>v^^>>^<<v><>><^<>>><>v^v<^v<v^>vv>^v<<^<><v>><v^>^<vv^^v>><>>^>^v>>vv>>><<<<<<v^v>>^<<<<v<><^^^^^^^>v<>^>^v<><<^>>><^>^^^^v>>^^>v^>v<^v^v>>v^<v^><><><>><v>v>^>>>^<<><^<vvv^^v<<^<<^v^<>^^>^<v^^>>v>^v<>v^<>>^><^^<vv><<^^^<^>^<<<>>^vv><>^<^^^>^<><^v><<<<^>^>v<>v^>>^^vv^<v^<v<^vv^vv^>vv>^<><^v<^^<>v<vv^vv>v>>^^<^v<<^><v>^v<^<^>v^^^v^<><^<<^<<<v>>>>^><v>^>^^vvv>v><v>^v><vv^<<><v>^>v<<v^^v^v^>vv<v>v>vv<v<v<^v><<^>^^v>^<vv>>v<v
+^<<<>^^<>v<v^>v<v^v^^^<>v^^^v^^<v><v<^^^^v^<>^^>^v^<^>^<^<^><><<>^^^v<>><><>>>>>vv^v^^v>vv^<<^<<v>>^^<>>^<>^vvv^vvvv<<<<v<v^v^v<^^>v<>v>>v<>^<^<^<^v<<>v>^<vv<^v^<><<>>v^<v>vvv^>^<<<^<v<v^<v<^^<>><><<>><>>^v>vv<<vv><^^^^^v<v^>vv^><><v^>v^^^<v>v^^^^vv^^v<<^><<v^>^^<^<^vvv<vv<^v>>v>>>v<v^>v<v<<>v^v<vv><^<vvv<>><^v^v<<^^<>>><>^^<^<<v<^>vv^^>v>v^>v^^>v>v>v>^><^<><v^^<vvv^>><><^v^<v^>vv<v<>>>^<<^<^^<v^<v>>v<>^>>^^vv>>^^vv<v>>^^^<v<v<^>^>^>^<>>v<<^^v>^^^v^<>v^><<>>^><^>><v<<v><vvv^^^^v>vv^<<<^^v>>^^<^v^v<><^<^vv<<v><v^>>v<^<v>>>><^v<<^<^<vv<<^>vv<^>>><^>^<^<<^^^^<v^<v^<v^>^<^>v<>v^^>^<v^>^>^>^v<^^<<^>>^>v>v>>^<^>>vvv^>>^<<v^vvv>vv^>v<vvvv>><^v^<vv>v>^v>^^>v>^<>vv<vv<<vv^^>>^v<^^v><>v<^<>v^>><v><^><>><v>><^^v<v<<v^v<>v<^^<<^^<<<<^<><<>v><>>>>>v><>>^^><v<^^v<<v<>v<vvv<>><>>^<v^v>>><v^^>><v<>>v<>^<>><>vvv^>>v>^>v^>v><^<v^>>><^^v>^<<v<^v^^v><v^^v>^v^<>^v>v^><^<v>^vv<><>^vv>vv<vvv><v^<>><^<<><vvv>v><<vv^><<<>><><^^v^vv<v>>>^>>>v>^<<<<^>v^>>v<^>v><<v^^>^>^>v>^<v>v^v>v>>><^>>v<v<<^v<v<<v>vvvvv<v^^^<
+<^><<^>v^v>>^>^vv<v^v><>v<v<>>^<^^<>^>vv<^v<^^v>^<^^<<<>^>vv>^v^^vv><<>^vv>v^>>v<^<<<^><>v><^><<vvv^<<^vv>v<><><^v>v^v<v^<<>^<^>>vv^v^v^<^^vv^^v^v^v<^<>>v<<><v^v<^^v^^<^<>v<>>>>>>v^>>^v^<^>^>v>^^v<<^<>>><vv^>^>><<>>^><v<>vv<><vv>v^><><>^>^<^<^v^^>>v<>vv^>>>>^<v^^><><<<v^^>><><^^<^><><^>v>v>v^vv<<v><v>^^<^^>><^><<<v>>^^^^>>v<v>>v<><>v<^v>v<v>>v<v<<^vv>^v>>^<>>><v>v^^v^>^<v<>>><vvv<<^>>v^v^>^>>^<><>>^<<>^vv^^>^v<>>^^^vv<^>^<v^v^vvv^v>^vv^^^<^^><v<^><vvv<>v>^^>>v^<v^<^>>>>>v^><>>>^^<<<^v^v^^<v<^v><^v><>^^vvvv^<<<v^vv<^v^v<v^<v<<^vv^^v<<<<>>^<>>>v^<>^>^<>>>>^<<>^^^>v^<>v><<>>>^v^vvv^v>v><v<>v><<vv<^<^>^>vv>^>>^v^<^><<>^v^v>>>^<v>^v^<>>^<>v>^><><v>>^<^v<v^vv^><^<<<^vv^v^<>^><v<v>>v>>^<>^v^>vv^^^^v>>^>>vv>>^v<<<^>^^>^<v>vv^<<<^^>>^<><^<<^<vvv^<>v<>^^^<vv<vv^>v^>><vv^<^^><<>v^vv<><<v^<<v^>>^>><<v>>^^v><<^^<^<<<><v<v<^<<vv^<vv^^>>v<^>^>>v<^<^<<>^^^^^<v<^>^^v>>v^^>^><><^v<<<^>>>^^^<v^vv^^<v>^>v<v^<^^<<vv<>^>>^>>^><^<>vv>^>v<><^<<>v<<^>vv>^^v>^>^v^>^>^>^^><^>v^>><^<<v^>^vv^<<<>^^v<vv<^>v>^<>vv><
+^^<v>><v^vv^>^vvv<v^vv<vv^<v^<><v<>v>^<<>^<vvvvv<vv>^<>>^vv^^^><^<<<v<><vv^<<<^^>>v>><^v>v^>^v<^v^>><v>^<^v<v^v>^^^>v><v^<<^^<^^^^^<v>^<>>^vv>v<^v><>^v<><v^v>^><<>><v^<>>v>>v>vvv^v><v^^<<>vv^><<><><vv^v><v>vv>>^v^<<^v>><><><>>><v<v<<<v<>><<^^<>>vv<>v^><^>>^^^v<>v>v>^^vv^v<>^>v^<>^<^>><>>><<>v>><>^v^v><>v>>^>><^^<<^v^>^>^<^<>>v<<^^^vv><<<^v>^^<v>v<vv^<^<>v^^^>>v>v>v<>vv<^<>vv><><>><^>>vv^vv^^^<><>^<v^vvv>^<>vv<<v>v^<>>v^^^v><>><><v^>^v^<<^^v>vv<^>>v^<vv>vv^^>>><><v^v^<v<<>v^^>^v^^v^<<>>v>^^v<>v>>v^v<v^>v^><v^v>^<^<^<^vvv>v<^<^<<^<<>^<v<^>v>>>>^^>v<^v<^>v^<>>v><vv<>>><^^<^v<^^^vv>>>>v<v^^v<<>^^>^>^<><<>v^v>^^vv^>><>>^vv^<v<<<^v>^<>v>v>>>^v<><v^^^<<><v<><v^v<^<<vv^><>^>^>^<>>v^><<><^^<^><<^vv<>^>>^^^v^^<^<><^v<v>>^<^^v^v<<v^v^<vvvv^<<>><<v>v^>v<v<<>^^>vv^<><v<v><^<><^<^>v>>v<v<vv^^<<^^<>^<v^<^^v^^>^vv<^<^>^>><vv<vv>v>^<>>v^><v<^>v>^><vv>^^<><>v<v>v<>^<^v^<><v<vvv<^^><v>^^>v><^<>>vv>v^<>^<^v><<<^^>^v^^><v^<vv>^^^v>^v>v>>^^v<^v^<>>><>v<>vv^>>^vv>v^v<v>^vvv><^><>v^><<<<^<v^v><v<<^^><vv>v^<^>
+^>>^^^vv>>^^<<><<^v>>><^>^v^^v^v<<vv^<^>><v^>vv^><^<^^v^>><<^>><>v^v<v>^^vvv<<<vv>^^^><^^v<v<<<><<<^>><^><^^><<>^><>>^<vvvv^^<^>v><v>><>>^><^^^^^vv>v<<><vv<^^^v><^>>^<v>^vv^>>^vv<vvvvv<^><^vv^^>vv<^><v^>^^v><><<<v<^>>v>>>^v>^vv>>>v^<>><v>>vv^<^v>v>v><>vv^>>>^v<>v^<vv^^vv>v<v<<^^vv><v>^^>v<><<v><>><>^v^vv^<^<^>^>><>^<>^<vv^v<><v>^<>v<>><v<>><<v>vv^>v<vv><<v>^<><^<><^>>^v<vv^^v^>^><^vvvv^<>^vv<><<^^^v^<>^vv>v^<v<>v>v>^^<<^^>^vv<v><v<v<<^<><<<><^v^^>^<<><<^<v^<^><^>^<^<>^^>><^^<v>vv<v^v>v>><<^<^^<v^>^^<^<^^<v^<<><>v^>v^^v><<^><^^^^<>^><>v>^v<vv>^vv^^>>^^>>v^<<<^vv^>vvv^^^^<v<>>v<<>>><^v<><<v>v^v^^^v^<>>v^v>^>><^^<<v>>><<^^>>v^^<^>>^>vv^^v<<v^<v<^>^<v><<<v^v^^><<v>^^^v<v>>^>>^><^^vvv^^>>>^v<v<^>^v>>v^>><^v^v^><>v><>v>vv^>>><^<^vv<><<^<<><<^^^^>v<^>v<v<><vvv>^>>vvv>v>^<^v>^vv<<^<^v<>v<<v^^v<>>^^<>>^><<vv<><<v^v>>^^v^<><^v>^>^>>>^^<^^>vvvv^vv<v^^<<><>^>v^v>><v^<<<v<^v>vvv>>v<<>^vv<v>^vv><>^^<<^<<<<<<<>^^<>v<<<^<<<<<<><>^>^vvvv<<^>><^^^vv^>v^v<<>^><v^<><v>>^<vv^vv>^>v^<<<<vv><<<<^<<>^<>v^v^^v
+v^v^<<v>vv^^><>v><^^^<v<>^^>>>>>^<^<>^^<^<<>>vv<>>v^>^^><<^^<v>^^>v>>><v<v><<><>v^^v>^vv<v<vv<v<><>>v^><<vv^<<<^>v<<v>>>>>v<^vv<>>>v>^<^>^>>^>^^><>^^^v<^v^<vv>v><^<>v^<>>^<<^<>>^^vv^v^<<<^>v<<<<^<v<<<<>^><v>>v><<<>vv^<^>^^<>>v<v^<v^><^^v<<^>^^v^^>><^vv<><<>>^^<vv<<^v<^><>>vv^^^<>>^v>v^v^v^>^v<><>^vvv>><<^>v<v>^^<<^v<<v<^<>v^<^>>vv>v^v<vvv<>vv^^>^<v><<<><^><<<v><v^>v^v>v>><^>^><<v<><vv><v<^vv<^><vv>>^v<v><<v^^>^^><vv<v>><v>v<^vv^^v^<v>^vv><vv^^^>^><>^^<v>><>vv>>^v>>>>v>><>v^v^^<^>v<^>>^>vvvv>^^><^<v^^vv^v^<^><vv^^^>^^><><^vv<^<^vv^^<<vv<v<^>vv^^><v<>v><><<v>^><v^><v>^<^vvvv<^<v<v^v<v><>><><>v<^>><<^<<^v<v><v<>>v><><<<vv^^><vv^<v<vv>><^><>v^v^v>^v>>^^vv<><v>>><><>v^v>^^<^<v>^^>vvv<v><^^>>v^>>v^^v<><<^v>><^>>^<v<>v^><>^>v><^><<^v^^v>^><>>>vvv<v^^<><^<<<<^^vv><<>vv^v>v<>vv>v^^v<^><vvv>>vvv<v<^^<<<<<><v^>>^>>v><^v^<^<><<<v<v<^v^^v<^^^><v^^vv^^<<^v^^^^<>^><>^v^v^v<^<<v<^>>^>v^v^<>>>>v<<><vv<v<^>^^>><v^vv>^^vv<>vvvv^<<<<vv<>^^vv>>v>v<^v^v>v^^v<>v>v>v<vv^vv<><^<>^>^>>^>^<vv<<vv^<><<<vv^v>vv^<>
+<v<^<v<^>>^vv^>^v^<<^><^<v^<^^^<^<<>>>^^<<^<vv^v<v<<v<vv<<v^><^<<>>^<^^v><^v>>^>^^<<^^v^vv<v<<>^^<^>v>v^<vvv<><^^<<vv^<>>^^^>>v>><^<vv<^><>^<^v^>vv>v^^v^^>^^<>^>^>^<v^v><^><^><>^^><<v^v<<<v^v<><<<v^<><>v^vv^v<>v>v^<^>^<<>><v<vv<^^<<>>^>^^<^<vv^v<><^v<vvvv>>><vv<><v>vv><v^^>^vv>>vvv>^^<>vv>v><<v>>^<>v>^^>^v^^vv^^v>>^<>>^^<><vv<<v<^<v<^v>vv^<>v><^>^<<v^>v>^v^<<vv<<^^<v^<<>v>>^v><<^>^^<<><<<^^v^<>>vv<>v^v^>v<<v^v<^^<>vv<v>><>v<^^^<>>v>v<^<v^>v>>>v><<>>>vv><>^<^>><v<>>v^><^^<v<^^<>>>^>v<<>>^^<><^vv<vvv<^>><^vvv<^<<v>v>^v<>^<v<>>^<v<^<<v<^v<v<<<vv<^>><<>v>vv><>v^>^<>v^vv<<>^^^v>v^>>^<>^>v^^^^<v>>^^>^<<v^vv>^v^^v^v^<^v^><>^v<^^^<v^^>>^><<^^<v><v>^^v>v>>>v^>v<vv<vv^^><vv^v<<<<<><<v^<<>>v<<v<vvv>v>>>^>>>^<>>>>v^>vv<<>^><<v>^v^v><<vv<vv<>v<<><>v^vv>^>>^^><^<vv^<<>^v^vvvv<<^>v<>vvv^<><<<<>vv^^>>><>v>v<^^<v<v<<v>v^^v<<<<^>^<v^vv<v>v>>>^vv>^v<<^><v>vv<^v<v^<><v>>>^<>>><>^^<>^v^>vvv^v^^v^<^^v<^>v^^<>^<^><v^<<v<<v<<^^>^v^^>><<v>>v>^<v^<>^^><<<v^<>v>^v^vv>vv<<>^^<^>>^<<>><>^v^<<<v^><<^^^<^v<<v^>^^vv></textarea><br><br>
+
+			<!-- The 'run simulation' button and result fields -->
+			<div style="display: inline-block;  border: 1px solid #00cc00; padding: 10px; margin-left: 10px;">
+				<input type="button" onclick="solveThatShit();" value="[ Run Simulation ]"  style="background: transparent; border: 0; font-family: inherit; font-size: 26px; margin: 0; padding: 0; color: #009900; cursor: pointer;"><br>
+
+				<p style="color: #00cc00;">
+				    Part 1 Result: <input type = "text"  id = "part1" value = "" size=46/><input type="button" onclick="document.getElementById('part1').select();document.execCommand('copy');window.getSelection().removeAllRanges();" value="[ Copy ]"  style="background: transparent; border: 0; font-family: inherit; font-size: 16px; margin: 0; padding: 0; color: #009900; cursor: pointer;"><br>
+				    Part 2 Result: <input type = "text"  id = "part2" value = "" size=46/><input type="button" onclick="document.getElementById('part2').select();document.execCommand('copy');window.getSelection().removeAllRanges();" value="[ Copy ]"  style="background: transparent; border: 0; font-family: inherit; font-size: 16px; margin: 0; padding: 0; color: #009900; cursor: pointer;"><br>
+				</p>
+			</div>
+
+			<!-- Debug Output Box -->
+			<br><br>
+
+		    <font style="color: #00cc00;">Debug Output:</font><br>
+
+		    <textarea id="debug" name="Text1" cols="80" rows="15" style="font-size: 16px; border:solid 1px #00cc00;"></textarea>
+		</div>
+	</body>
+</html>
