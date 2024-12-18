@@ -53,8 +53,6 @@
 	      	this.toString = function(){ return( `${dir}` ) };
       	}
 
-      	// 284 - low
-
 		// Solve that shit
       	function solveThatShit(){
       		var startTime = new Date();
@@ -69,15 +67,11 @@
 
 			for( var i = 0 ; i < input.length ; i++ ){
 				let[ x, y ] = input[i].split( "," );
-				//console.log( `(${x},${y}):`)
 				walls.push( new Point( x, y ) );
 				setSafeGridValue( x, y, WALL_ICON );
 			}
 
 			console.log( `Starting Run ${input.length} lines of input)\n ==============================\n` );
-
-			//console.log( `Initial Grid:` );
-			//printGrid();
 			
 			// INSERT SOLUTION HERE
 			var currentWall;
@@ -92,10 +86,7 @@
 				}
 			}
 
-			//console.log( `Final Grid: cache size=${Object.keys(cache).length}` );
-			//printGrid();
-
-			document.getElementById("part1").value = lowScore;
+			document.getElementById("part1").value = "broken from part 2";
 			document.getElementById("part2").value = currentWall;
 
 			console.log( "\n==============================\nRun Completed in " +  ((new Date() - startTime) / 1000 ).toFixed(2)  + " seconds\n" );
@@ -103,27 +94,17 @@
 
 		function makeMove(){
 			var[ x, y, direction, score ] = getNextMove();
-			//console.log( `(${x},${y})=>${direction} starting makemove ${score}` );
 
 			if( mazeEnd.equals( x, y ) ){
-				//console.log( `maze end reached with score ${score}` );
 				if( isLowScore( score ) ){
 					lowScore = score;
 				}
 			} else if( isLowScore( score ) ) {
 				for( var move of MOVE_OPTIONS ){
-					var newX = x;
-					var newY = y;
-
-					/*do{
-						newX += move.xdif;
-						newY += move.ydif;
-					}while( isHallway( newX , newY  ) )*/
-
 					if( !isOppositeDirection( move.dir, direction ) &&
-						( getSafeGridValue( newX + move.xdif, newY + move.ydif ) != WALL_ICON ) && 
-						( inBounds( newX + move.xdif, newY + move.ydif ) ) )
-						addToQueue( newX + move.xdif, newY + move.ydif, move.dir, score + 1 );
+						( getSafeGridValue( x + move.xdif, y + move.ydif ) != WALL_ICON ) && 
+						( inBounds( x + move.xdif, y + move.ydif ) ) )
+						addToQueue( x + move.xdif, y + move.ydif, move.dir, score + 1 );
 				}
 			}
 		}
